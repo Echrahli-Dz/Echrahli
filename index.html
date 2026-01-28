@@ -38,6 +38,7 @@
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'], // Pour le diplôme
                     },
                     animation: {
                         'pulse-slow': 'pulse-ring 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -58,7 +59,7 @@
         }
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
         
         body {
             font-family: 'Inter', sans-serif;
@@ -66,6 +67,55 @@
             color: #f8fafc;
         }
 
+        /* --- STYLE DU DIPLOME (CSS Only) --- */
+        .certificate-paper {
+            background: #ffffff;
+            color: #1e293b;
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .certificate-border {
+            border: 12px double #334155;
+            height: 100%;
+            width: 100%;
+            position: relative;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .certificate-border::before {
+            content: '';
+            position: absolute;
+            top: 10px; left: 10px; right: 10px; bottom: 10px;
+            border: 2px solid #cbd5e1;
+            pointer-events: none;
+        }
+        .cert-title {
+            font-family: 'Playfair Display', serif;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+        .cert-student {
+            font-family: 'Playfair Display', serif;
+            color: #2563eb;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+            margin: 20px 0;
+        }
+        .signature-area {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #94a3b8;
+        }
+
+        /* --- STYLES GÉNÉRAUX --- */
+        
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
@@ -181,6 +231,13 @@
 
     <!-- JavaScript Logic -->
     <script>
+        // --- AI CONFIGURATION ---
+        const AI_CONFIG = {
+            apiKey: "", 
+            model: "gpt-3.5-turbo",
+            systemPrompt: "Tu es l'assistant intelligent d'Echrahli, une plateforme éducative algérienne."
+        };
+
         // --- State Management ---
         const state = {
             currentView: 'landing', 
@@ -194,10 +251,7 @@
                 name: "",
                 type: "",
                 location: "",
-                teachers: [
-                    { id: 1, name: "Karim Benali", specialty: "Informatique", courses: 3, rating: 4.8 },
-                    { id: 2, name: "Sara Hamidi", specialty: "Marketing", courses: 1, rating: 4.5 }
-                ],
+                teachers: [],
                 revenue: 125000,
                 students: 450
             },
@@ -206,18 +260,44 @@
             isChatOpen: false,
             showTeacherModal: false,
             isDeepWorkMode: false,
+            isProfileMenuOpen: false,
             
             enrolledCourses: [], 
             currentLessonIndex: 0,
             shippingRequests: [], 
             verificationResult: null,
-            watchActiveTab: 'notes', // notes, ai, resources, ask, group
-            
+            watchActiveTab: 'notes', 
             landingVerifyMsg: '',
-            landingVerifyStatus: null 
+            landingVerifyStatus: null,
+
+            myDiplomas: [
+                {
+                    id: 1,
+                    type: 'e-diploma',
+                    courseName: "Développement Web Complet",
+                    instructorName: "Karim Benali",
+                    date: "25 Oct 2023",
+                    serialNumber: "ECH-12345",
+                    status: "Validé"
+                },
+                {
+                    id: 2,
+                    type: 'physical',
+                    courseName: "Marketing Digital & Réseaux",
+                    instructorName: "Sara Hamidi",
+                    date: "15 Nov 2023",
+                    trackingNumber: "YAL-99231-ALG",
+                    status: "En attente d'expédition"
+                }
+            ],
+
+            chatMessages: [
+                { role: 'assistant', content: "Bonjour ! Je suis l'IA d'Echrahli. Demandez-moi des infos sur nos cours (Excel, Python, Immobilier...)" }
+            ],
+            isAiTyping: false
         };
 
-        // --- Mock Data ---
+        // --- Mock Data (Expanded) ---
         const courses = [
             {
                 id: 1,
@@ -232,16 +312,11 @@
                 hasPhysicalCert: true,
                 syllabus: [
                     { title: "Introduction au Web", desc: "HTML, CSS et les bases du navigateur." },
-                    { title: "JavaScript Moderne", desc: "ES6+, Async/Await et DOM manipulation." },
-                    { title: "React.js Avancé", desc: "Hooks, Context API et Redux." },
-                    { title: "Node.js & MongoDB", desc: "API RESTful et bases de données NoSQL." }
+                    { title: "JavaScript Moderne", desc: "ES6+, Async/Await et DOM manipulation." }
                 ],
                 lessons: [
                     { id: 101, title: "Lesson 01: Setup Environment", duration: "10:00" },
-                    { id: 102, title: "Lesson 02: Basics & Syntax", duration: "15:30" },
-                    { id: 103, title: "Lesson 03: Advanced Logic", duration: "20:00" },
-                    { id: 104, title: "Lesson 04: Styling Deep Dive", duration: "25:00" },
-                    { id: 105, title: "Lesson 05: Final Project", duration: "30:00" }
+                    { id: 102, title: "Lesson 02: Basics & Syntax", duration: "15:30" }
                 ]
             },
             {
@@ -255,53 +330,75 @@
                 category: "Business & Marketing",
                 badge: null,
                 hasPhysicalCert: true,
-                syllabus: [
-                    { title: "Stratégie de Contenu", desc: "Créer du contenu engageant." },
-                    { title: "Facebook & Instagram Ads", desc: "Ciblage et optimisation." }
-                ],
+                syllabus: [],
                 lessons: [
-                    { id: 201, title: "Lesson 01: Content Strategy", duration: "12:00" },
-                    { id: 202, title: "Lesson 02: Ads Manager", duration: "18:45" }
+                    { id: 201, title: "Lesson 01: Introduction au Marketing", duration: "12:00" },
+                    { id: 202, title: "Lesson 02: Stratégies Réseaux", duration: "15:45" },
+                    { id: 203, title: "Lesson 03: Publicité ciblée", duration: "09:30" }
                 ]
             },
+            // NEW COURSES
             {
                 id: 3,
-                title: "Design Graphique avec Adobe CC",
-                instructor: "Omar K.",
+                title: "Maîtrisez Microsoft Excel (Débutant à Expert)",
+                instructor: "Amir Boudiaf",
                 rating: 4.9,
-                reviews: 2100,
-                price: 3000,
-                image: "https://images.unsplash.com/photo-1558655146-d09347e92766?auto=format&fit=crop&w=400&q=80",
-                category: "Design & Créativité",
+                reviews: 2300,
+                price: 1800,
+                image: "https://images.unsplash.com/photo-1543286386-713d57659598?auto=format&fit=crop&w=400&q=80",
+                category: "Bureautique & Productivité",
                 badge: "bestseller",
                 hasPhysicalCert: false,
                 syllabus: [
-                    { title: "Théorie des couleurs", desc: "Psychologie et harmonie." },
-                    { title: "Photoshop Mastery", desc: "Retouche photo et compositing." }
+                    { title: "Les bases d'Excel", desc: "Interface, cellules, formules simples." },
+                    { title: "Tableaux croisés dynamiques", desc: "Analysez vos données comme un pro." }
                 ],
                 lessons: [
-                    { id: 301, title: "Lesson 01: Color Theory", duration: "10:00" },
-                    { id: 302, title: "Lesson 02: Photoshop Tools", duration: "30:00" }
+                    { id: 301, title: "Leçon 1 : Découverte de l'interface", duration: "08:00" },
+                    { id: 302, title: "Leçon 2 : Premiers calculs", duration: "12:00" },
+                    { id: 303, title: "Leçon 3 : Mise en forme conditionnelle", duration: "10:00" }
                 ]
             },
             {
                 id: 4,
-                title: "Python pour la Data Science",
-                instructor: "Amine T.",
+                title: "Python pour Data Science & Machine Learning",
+                instructor: "Lydia Mansouri",
                 rating: 4.7,
-                reviews: 540,
-                price: 4000,
-                image: "https://images.unsplash.com/photo-1553877522-43269d4ea984?auto=format&fit=crop&w=400&q=80", 
+                reviews: 600,
+                price: 3200,
+                image: "https://images.unsplash.com/photo-1526379095098-d400fd0bf935?auto=format&fit=crop&w=400&q=80",
                 category: "Informatique & Logiciels",
                 badge: "new",
                 hasPhysicalCert: true,
                 syllabus: [
-                    { title: "Pandas & NumPy", desc: "Manipulation de données." },
-                    { title: "Machine Learning 101", desc: "Scikit-Learn basics." }
+                    { title: "Introduction à Python", desc: "Variables, boucles et fonctions." },
+                    { title: "Pandas & NumPy", desc: "Manipulation de données." }
                 ],
                 lessons: [
-                    { id: 401, title: "Lesson 01: Pandas & NumPy", duration: "22:00" },
-                    { id: 402, title: "Lesson 02: Machine Learning", duration: "35:00" }
+                    { id: 401, title: "Leçon 1 : Installation Python", duration: "10:00" },
+                    { id: 402, title: "Leçon 2 : Syntaxe de base", duration: "20:00" },
+                    { id: 403, title: "Leçon 3 : Librairies Data Science", duration: "25:00" }
+                ]
+            },
+            {
+                id: 5,
+                title: "Agent Immobilier Certifié (Marché Algérien)",
+                instructor: "Sofiane K.",
+                rating: 4.5,
+                reviews: 120,
+                price: 4500,
+                image: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=400&q=80",
+                category: "Immobilier & Droit",
+                badge: null,
+                hasPhysicalCert: true,
+                syllabus: [
+                    { title: "Droit Immobilier en Algérie", desc: "Loi, cadastre, notaires." },
+                    { title: "Techniques de vente et négoce", desc: "Trouver des clients et conclure." }
+                ],
+                lessons: [
+                    { id: 501, title: "Leçon 1 : Le marché algérien", duration: "15:00" },
+                    { id: 502, title: "Leçon 2 : Cadre légal", duration: "30:00" },
+                    { id: 503, title: "Leçon 3 : Méthodes de prospection", duration: "18:00" }
                 ]
             }
         ];
@@ -346,6 +443,12 @@
                 case 'marketplace':
                     app.innerHTML = renderMarketplace();
                     break;
+                case 'my-learning':
+                    app.innerHTML = renderMyLearning();
+                    break;
+                case 'my-diplomas':
+                    app.innerHTML = renderMyDiplomas();
+                    break;
                 case 'course-details':
                     app.innerHTML = renderCourseDetails();
                     break;
@@ -365,6 +468,165 @@
             }
 
             initIcons();
+            if(state.isChatOpen) {
+                scrollToBottom('chat-history-global');
+            }
+            if(state.currentView === 'watch' && state.watchActiveTab === 'ai') {
+                scrollToBottom('chat-history-watch');
+            }
+        }
+
+        function scrollToBottom(id) {
+            const element = document.getElementById(id);
+            if (element) element.scrollTop = element.scrollHeight;
+        }
+
+        async function handleChatSubmit(inputId, historyId, context) {
+            const inputEl = document.getElementById(inputId);
+            const message = inputEl.value.trim();
+
+            if (!message) return;
+
+            state.chatMessages.push({ role: 'user', content: message });
+            inputEl.value = ''; 
+            state.isAiTyping = true;
+            render();
+
+            let aiResponse = "";
+            if (AI_CONFIG.apiKey && AI_CONFIG.apiKey.length > 10) {
+                aiResponse = await callOpenAI(state.chatMessages, context);
+            } else {
+                aiResponse = await simulateAIResponse(message, context);
+            }
+
+            state.isAiTyping = false;
+            state.chatMessages.push({ role: 'assistant', content: aiResponse });
+            render();
+        }
+
+        async function callOpenAI(history, context) {
+            try {
+                let systemMsg = AI_CONFIG.systemPrompt;
+                if (context === 'watch' && state.selectedCourse) {
+                    const course = courses.find(c => c.id === state.selectedCourse);
+                    systemMsg += ` L'utilisateur regarde : ${course.title}.`;
+                }
+                const messagesPayload = [
+                    { role: "system", content: systemMsg },
+                    ...history.slice(-10)
+                ];
+                const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${AI_CONFIG.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: AI_CONFIG.model,
+                        messages: messagesPayload,
+                        temperature: 0.7
+                    })
+                });
+                const data = await response.json();
+                if(data.error) throw new Error(data.error.message);
+                return data.choices[0].message.content;
+            } catch (error) {
+                console.error("AI Error:", error);
+                return "Erreur serveur IA.";
+            }
+        }
+
+        // --- IMPROVED AI LOGIC ---
+        function simulateAIResponse(userMsg, context) {
+            const lowerMsg = userMsg.toLowerCase();
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    let response = "Je suis l'IA d'Echrahli. Vous pouvez me poser des questions sur nos cours ou la plateforme.";
+
+                    // Contextual Logic
+                    if (lowerMsg.includes('bonjour') || lowerMsg.includes('hello') || lowerMsg.includes('slt')) {
+                        response = "Bonjour ! Comment puis-je vous aider à choisir votre formation ?";
+                    }
+                    // Price Logic
+                    else if (lowerMsg.includes('prix') || lowerMsg.includes('combien')) {
+                        response = "Nos cours commencent à partir de 1500 DZD. Les formations techniques comme Python ou le Dev Web sont généralement aux alentours de 2500-3000 DZD.";
+                    }
+                    // Course Specifics
+                    else if (lowerMsg.includes('excel')) {
+                        response = "Le cours 'Maîtrisez Microsoft Excel' couvre des fonctionnalités avancées comme les tableaux croisés dynamiques et les macros. Il est idéal pour améliorer votre productivité bureautique.";
+                    }
+                    else if (lowerMsg.includes('python')) {
+                        response = "Python est un langage très demandé ! Notre formation 'Python pour Data Science' vous apprendra à manipuler des données avec Pandas et NumPy, parfait pour débuter dans l'analyse de données.";
+                    }
+                    else if (lowerMsg.includes('immobilier') || lowerMsg.includes('agent')) {
+                        response = "Notre formation 'Agent Immobilier Certifié' est spécialement conçue pour le marché algérien. Elle couvre le cadre légal et les techniques de négoce pour vous lancer rapidement.";
+                    }
+                    else if (lowerMsg.includes('marketing') || lowerMsg.includes('réseaux sociaux')) {
+                        response = "Le marketing digital est essentiel aujourd'hui. Notre cours couvre les stratégies Facebook/Instagram et la publicité ciblée pour promouvoir une activité.";
+                    }
+                    else if (lowerMsg.includes('dev') || lowerMsg.includes('web') || lowerMsg.includes('mern')) {
+                        response = "Le développement Web (MERN) est notre formation la plus populaire ! Vous apprendrez à créer des sites web complets de A à Z avec MongoDB, Express, React et Node.js.";
+                    }
+                    // Platform Info
+                    else if (lowerMsg.includes('echrahli') || lowerMsg.includes('plateforme')) {
+                        response = "Echrahli est la première marketplace éducative en Algérie dédiée à l'apprentissage en ligne, offrant des cours vidéo de qualité et des certifications reconnues.";
+                    }
+                    else if (lowerMsg.includes('diplome') || lowerMsg.includes('certificat')) {
+                        response = "Nous délivrons deux types de diplômes : l'E-Diploma (immédiat) et le Diplôme Physique expédié par Yalidine directement chez vous en Algérie.";
+                    }
+                    // Watch Context
+                    else if (context === 'watch') {
+                        response = "Je suis là pour vous aider pendant votre visionnage. Posez-moi une question sur le cours actuel ou un concept technique !";
+                    }
+                    
+                    resolve(response);
+                }, 1000);
+            });
+        }
+
+        function renderProfileDropdown() {
+            if (!state.isProfileMenuOpen) return '';
+
+            return `
+                <div class="absolute right-0 top-12 w-64 bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 z-50 fade-in">
+                    <div class="p-4 border-b border-slate-100">
+                        <p class="font-bold text-sm text-slate-900">Youcef</p>
+                        <p class="text-xs text-slate-500">youcef@student.dz</p>
+                    </div>
+                    <div class="p-1">
+                        <button onclick="navigateTo('my-profile')" class="w-full text-left px-3 py-2 hover:bg-slate-50 rounded text-sm font-medium text-slate-700 flex items-center gap-3"><i data-lucide="user" class="w-4 h-4 text-slate-500"></i> Mon profil</button>
+                        <button onclick="navigateTo('my-courses')" class="w-full text-left px-3 py-2 hover:bg-slate-50 rounded text-sm font-medium text-slate-700 flex items-center gap-3"><i data-lucide="book-open" class="w-4 h-4 text-slate-500"></i> Mes cours</button>
+                        
+                        <!-- NEW LINK: MES DIPLOMES -->
+                        <button onclick="navigateTo('my-diplomas')" class="w-full text-left px-3 py-2 hover:bg-slate-50 rounded text-sm font-medium text-slate-700 flex items-center gap-3"><i data-lucide="award" class="w-4 h-4 text-blue-500"></i> <span class="text-blue-600 font-bold">Mes Diplômes</span></button>
+
+                        <button onclick="navigateTo('faq')" class="w-full text-left px-3 py-2 hover:bg-slate-50 rounded text-sm font-medium text-slate-700 flex items-center gap-3"><i data-lucide="help-circle" class="w-4 h-4 text-slate-500"></i> Aide et FAQ</button>
+                        <div class="border-t border-slate-100 my-1"></div>
+                        <button onclick="logout()" class="w-full text-left px-3 py-2 hover:bg-slate-100 text-red-600 hover:text-red-700 rounded text-sm font-medium flex items-center gap-3"><i data-lucide="log-out" class="w-4 h-4"></i> Déconnexion</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleProfileMenu() {
+            state.isProfileMenuOpen = !state.isProfileMenuOpen;
+            render();
+        }
+
+        function navigateTo(action) {
+            state.isProfileMenuOpen = false;
+            if (action === 'my-courses') state.currentView = 'my-learning';
+            else if (action === 'my-diplomas') state.currentView = 'my-diplomas'; 
+            else if (action === 'logout') logout();
+            else showToast("Bientôt disponible.", "info");
+            render();
+        }
+
+        function logout() {
+            state.isProfileMenuOpen = false;
+            state.currentView = 'landing';
+            render();
+            showToast("Déconnecté.");
         }
 
         // --- Views ---
@@ -377,12 +639,12 @@
                             <i data-lucide="graduation-cap" class="w-10 h-10"></i>
                             <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-white">Echrahli</h1>
                         </div>
-                        <p class="text-slate-400 text-lg max-w-md mx-auto">La marketplace éducative de référence en Algérie. Apprenez, enseignez ou formez vos établissements.</p>
+                        <p class="text-slate-400 text-lg max-w-md mx-auto">La marketplace éducative de référence en Algérie.</p>
                     </div>
-
+                    
                     <h2 class="text-2xl font-semibold mb-8 text-slate-200">Rejoignez-nous en tant que :</h2>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl mb-16">
                         <button onclick="goToSignup('student')" class="group relative bg-slate-800 border border-slate-700 p-8 rounded-2xl hover:border-blue-500 hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] transition-all duration-300 text-left overflow-hidden">
                             <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <i data-lucide="user" class="w-32 h-32 text-blue-500"></i>
@@ -423,12 +685,13 @@
                         </button>
                     </div>
 
-                    <div class="w-full max-w-2xl mx-auto mt-16 mb-8 glass-panel p-6 rounded-2xl border border-slate-700/50 relative overflow-hidden animate-slide-in">
+                    <!-- FIX 1: Diploma Verification moved to bottom of website -->
+                    <div class="w-full max-w-2xl mx-auto mt-auto mb-8 glass-panel p-6 rounded-2xl border border-slate-700/50 relative overflow-hidden animate-slide-in">
                         <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
                         <div class="flex flex-col items-center text-center space-y-4">
                             <h3 class="text-lg font-bold text-slate-200">Vérifier l'authenticité d'un diplôme</h3>
                             <div class="flex w-full gap-2 max-w-lg">
-                                <input id="landing-diploma-input" type="text" placeholder="Numéro de série" class="flex-1 bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-3 text-slate-200 focus:border-blue-500 focus:outline-none text-sm placeholder-slate-500 transition-colors">
+                                <input id="landing-diploma-input" type="text" placeholder="Numéro de série (Ex: ECH-12345)" class="flex-1 bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-3 text-slate-200 focus:border-blue-500 focus:outline-none text-sm placeholder-slate-500 transition-colors">
                                 <button onclick="verifyLandingDiploma()" class="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold py-3 px-6 rounded-lg text-sm transition-all shadow-lg shadow-blue-600/20 whitespace-nowrap flex items-center justify-center gap-2">
                                     Vérifier <i data-lucide="shield-check" class="w-4 h-4"></i>
                                 </button>
@@ -436,7 +699,7 @@
                             <div class="h-6 flex items-center justify-center w-full">
                                 ${state.landingVerifyStatus === 'success' ? `
                                     <div class="flex items-center gap-2 text-emerald-400 text-sm font-medium bg-emerald-900/20 px-3 py-1 rounded-full border border-emerald-500/20">
-                                        <i data-lucide="check-circle-2" class="w-4 h-4"></i> Diplôme Authentique - Délivré à Youcef
+                                        <i data-lucide="check-circle-2" class="w-4 h-4"></i> Diplôme Authentique - ${state.verificationResult.studentName}
                                     </div>
                                 ` : ''}
                                 ${state.landingVerifyStatus === 'error' ? `
@@ -451,10 +714,288 @@
             `;
         }
 
+        // --- NEW: MY DIPLOMAS VIEW ---
+        function renderMyDiplomas() {
+            return `
+                <nav class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+                    <div class="max-w-7xl mx-auto flex items-center justify-between">
+                        <div class="flex items-center gap-6">
+                            <a href="#" onclick="state.currentView='landing'; render()" class="flex items-center gap-2 text-blue-500 font-bold text-xl">
+                                <i data-lucide="graduation-cap" class="w-6 h-6"></i> Echrahli
+                            </a>
+                            <span class="text-white font-bold hidden md:block">Mes Diplômes</span>
+                        </div>
+                        
+                        <div class="relative">
+                            <button onclick="toggleProfileMenu()" class="flex items-center gap-2 border-l border-slate-700 pl-4 focus:outline-none hover:bg-slate-800/50 p-1 rounded transition-colors">
+                                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-sm">Y</div>
+                                <span class="hidden md:block text-sm font-medium text-white">Youcef</span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                            </button>
+                            ${renderProfileDropdown()}
+                        </div>
+                    </div>
+                </nav>
+
+                <main class="flex-grow max-w-7xl mx-auto w-full p-4 md:p-8 fade-in">
+                    <div class="mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div>
+                            <h1 class="text-3xl font-bold text-white">Mes Certifications</h1>
+                            <p class="text-slate-400 mt-1">Gérez vos diplômes électroniques et suivez vos expéditions physiques.</p>
+                        </div>
+                        <!-- Type Toggle Buttons -->
+                        <div class="bg-slate-800 p-1 rounded-lg inline-flex">
+                            <button onclick="state.diplomaFilter='e'; render()" class="px-6 py-2 rounded-md text-sm font-medium transition-all ${state.diplomaFilter !== 'physical' ? 'bg-slate-600 text-white shadow' : 'text-slate-400 hover:text-white'}">
+                                E-Diplômes
+                            </button>
+                            <button onclick="state.diplomaFilter='physical'; render()" class="px-6 py-2 rounded-md text-sm font-medium transition-all ${state.diplomaFilter === 'physical' ? 'bg-slate-600 text-white shadow' : 'text-slate-400 hover:text-white'}">
+                                Diplômes Physiques
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${state.myDiplomas.map(dip => {
+                            if (state.diplomaFilter === 'physical' && dip.type !== 'physical') return '';
+                            if (state.diplomaFilter === 'e' && dip.type !== 'e-diploma') return '';
+
+                            if (dip.type === 'e-diploma') {
+                                // RENDER E-DIPLOMA CARD
+                                return `
+                                    <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 hover:border-blue-500 transition-all group relative overflow-hidden">
+                                        <div class="absolute top-0 right-0 p-4 opacity-10">
+                                            <i data-lucide="award" class="w-24 h-24 text-blue-500"></i>
+                                        </div>
+                                        <div class="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h3 class="text-xl font-bold text-white group-hover:text-blue-400 transition-colors">${dip.courseName}</h3>
+                                                <p class="text-sm text-slate-400 mt-1">Formé par: ${dip.instructorName}</p>
+                                                <p class="text-xs text-slate-500 mt-1">Date: ${dip.date}</p>
+                                            </div>
+                                            <div class="bg-blue-500/10 text-blue-400 text-xs font-bold px-2 py-1 rounded border border-blue-500/20">
+                                                Électronique
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mt-4 pt-4 border-t border-slate-700/50 flex flex-col gap-2">
+                                            <div class="flex flex-col">
+                                                <span class="text-[10px] uppercase tracking-wider text-slate-500">Numéro de Série</span>
+                                                <span class="font-mono text-blue-400 font-bold bg-slate-900 px-2 py-1 rounded border border-slate-700">${dip.serialNumber}</span>
+                                            </div>
+                                            <button onclick="viewEDiploma(${dip.id})" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg shadow-blue-600/20">
+                                                <i data-lucide="eye" class="w-4 h-4"></i> Voir le Diplôme
+                                            </button>
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                // RENDER PHYSICAL DIPLOMA CARD
+                                const statusColor = dip.status === 'Livré' ? 'text-emerald-400 bg-emerald-500/10' : 
+                                                    dip.status === 'Expédié' ? 'text-blue-400 bg-blue-500/10' : 
+                                                    dip.status === 'En attente d\'expédition' ? 'text-yellow-400 bg-yellow-500/10' : 'text-slate-400 bg-slate-500/10';
+                                return `
+                                    <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 hover:border-blue-500 transition-all relative">
+                                        <div class="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h3 class="text-xl font-bold text-white">${dip.courseName}</h3>
+                                                <p class="text-sm text-slate-400 mt-1">Formé par: ${dip.instructorName}</p>
+                                            </div>
+                                            <div class="${statusColor} text-xs font-bold px-2 py-1 rounded border border-current/20">
+                                                ${dip.status}
+                                            </div>
+                                        </div>
+
+                                        <div class="bg-slate-900/50 rounded-lg p-4 border border-slate-700/50 mb-4">
+                                            <div class="flex justify-between items-center text-sm mb-2">
+                                                <span class="text-slate-400">Numéro de Suivi (Yalidine)</span>
+                                                <span class="font-mono text-white font-bold">${dip.trackingNumber}</span>
+                                            </div>
+                                            <button class="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs py-1 rounded flex items-center justify-center gap-2 transition-colors">
+                                                <i data-lucide="map-pin" class="w-3 h-3"></i> Suivre l'expédition
+                                            </button>
+                                        </div>
+
+                                        ${dip.status === 'En attente d\'expédition' ? `
+                                            <button onclick="requestPhysicalShipment(${dip.id})" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-600/20">
+                                                <i data-lucide="truck" class="w-4 h-4"></i> Demander l'expédition
+                                            </button>
+                                        ` : `
+                                            <button class="w-full border border-slate-600 hover:bg-slate-700/50 text-slate-300 text-sm font-medium py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                                                <i data-lucide="file-text" class="w-4 h-4"></i> Détails d'expédition
+                                            </button>
+                                        `}
+                                    </div>
+                                `;
+                            }
+                        }).join('')}
+                    </div>
+                </main>
+
+                <!-- E-Diploma Modal Overlay -->
+                ${state.viewingDiplomaId ? renderDiplomaModal(state.viewingDiplomaId) : ''}
+            `;
+        }
+
+        // --- Helper to Render actual Certificate Visual ---
+        function renderDiplomaModal(id) {
+            const dip = state.myDiplomas.find(d => d.id === id);
+            if(!dip) return '';
+
+            return `
+                <div class="fixed inset-0 z-[60] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 fade-in" onclick="state.viewingDiplomaId = null; render();">
+                    <div class="bg-white max-w-4xl w-full aspect-video rounded-lg shadow-2xl overflow-hidden relative flex flex-col items-center justify-center p-12 border-8 border-double border-slate-800" onclick="event.stopPropagation()">
+                        <!-- Header -->
+                        <div class="text-center mb-8">
+                            <div class="flex items-center justify-center gap-3 mb-2 text-blue-700">
+                                <i data-lucide="graduation-cap" class="w-8 h-8"></i>
+                                <h1 class="font-bold text-2xl tracking-widest text-slate-900">ECRAHLI</h1>
+                            </div>
+                            <p class="text-slate-600 uppercase tracking-widest text-xs font-bold">Plateforme Éducative de Référence</p>
+                        </div>
+
+                        <!-- Content -->
+                        <div class="text-center space-y-4 w-full">
+                            <h2 class="font-serif text-4xl text-slate-800 font-bold">CERTIFICAT DE RÉUSSITE</h2>
+                            <p class="text-slate-500 italic text-sm">Est décerné à</p>
+                            <h3 class="font-serif text-5xl text-blue-600 font-bold border-b-2 border-blue-200 pb-2 inline-block">Youcef</h3>
+                            
+                            <p class="text-slate-600 mt-4">Pour avoir complété avec succès la formation</p>
+                            <h4 class="text-xl font-bold text-slate-900 mt-2 uppercase">${dip.courseName}</h4>
+                            
+                            <div class="flex justify-between items-center mt-12 w-full px-12">
+                                <div class="text-center">
+                                    <p class="text-xs text-slate-400 mb-1">Formateur</p>
+                                    <p class="font-bold text-slate-800">${dip.instructorName}</p>
+                                    <div class="text-3xl mt-2 text-blue-600">✒️</div> <!-- E-Sig visual -->
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-xs text-slate-400 mb-1">Date</p>
+                                    <p class="font-bold text-slate-800">${dip.date}</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Footer Serial -->
+                            <div class="absolute bottom-4 right-6 text-xs font-mono text-slate-500 border-t border-slate-300 pt-1">
+                                S/N: ${dip.serialNumber}
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Download Button -->
+                    <div class="absolute bottom-4 right-0 mb-[-80px]">
+                         <button onclick="state.viewingDiplomaId = null; render()" class="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 shadow-lg">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                         </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function viewEDiploma(id) {
+            state.viewingDiplomaId = id;
+            render();
+        }
+
+        // --- Logic: Request Physical Shipment ---
+        function requestPhysicalShipment(id) {
+            const dipIndex = state.myDiplomas.findIndex(d => d.id === id);
+            if (dipIndex > -1) {
+                // Simulate processing
+                showToast("Demande d'expédition en cours...", "info");
+                setTimeout(() => {
+                    state.myDiplomas[dipIndex].status = "Expédié";
+                    state.myDiplomas[dipIndex].trackingNumber = "TRK-" + Math.floor(100000 + Math.random() * 900000);
+                    showToast("Expédition lancée ! Vous recevrez votre diplôme bientôt.", "success");
+                    render();
+                }, 2000);
+            }
+        }
+
+        // --- Logic: Verify Diploma (Updated for myDiplomas) ---
+        function verifyLandingDiploma() {
+            const input = document.getElementById('landing-diploma-input');
+            const code = input ? input.value.trim() : '';
+
+            if (!code) {
+                state.landingVerifyMsg = 'Veuillez entrer un numéro.';
+                state.landingVerifyStatus = 'error';
+                render();
+                return;
+            }
+
+            // Check in state.myDiplomas
+            const foundDiploma = state.myDiplomas.find(d => d.serialNumber.toUpperCase() === code.toUpperCase());
+
+            if (foundDiploma) {
+                state.verificationResult = {
+                    studentName: "Youcef", // Hardcoded for this demo user
+                    courseTitle: foundDiploma.courseName,
+                    date: foundDiploma.date
+                };
+                state.landingVerifyMsg = 'Diplôme Authentique - Délivré à Youcef';
+                state.landingVerifyStatus = 'success';
+            } else {
+                state.verificationResult = null;
+                state.landingVerifyMsg = 'Code Invalide';
+                state.landingVerifyStatus = 'error';
+            }
+            render();
+        }
+
+        // --- Other Views (Simplified for brevity, retaining functionality) ---
+        // (Keeping standard views from previous iteration to ensure full functionality)
+        
+        function renderMyLearning() {
+            const grid = courses.map(course => `
+                <div onclick="openCourse(${course.id})" class="glass-card rounded-xl overflow-hidden cursor-pointer hover:shadow-2xl hover:shadow-blue-900/20 hover:-translate-y-1 transition-all duration-300 border border-slate-700/50 group h-full flex flex-col">
+                    <div class="relative h-40 overflow-hidden">
+                        <img src="${course.image}" alt="${course.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                        <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-bold px-2 py-1">En cours</div>
+                    </div>
+                    <div class="p-4 flex flex-col flex-grow bg-slate-900/40">
+                        <h3 class="font-bold text-white text-lg leading-tight mb-1 line-clamp-2 group-hover:text-blue-400 transition-colors">${course.title}</h3>
+                        <div class="w-full bg-slate-700 h-1.5 rounded-full mt-3 mb-2 overflow-hidden">
+                            <div class="bg-blue-500 h-full rounded-full" style="width: ${Math.floor(Math.random() * 100)}%"></div>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-3">Progression: ${Math.floor(Math.random() * 100)}%</p>
+                        <div class="mt-auto">
+                            <button class="w-full bg-slate-800 hover:bg-blue-600 hover:text-white text-slate-300 text-xs font-bold py-2 rounded border border-slate-700 transition-colors">
+                                Continuer le cours
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            return `
+                <nav class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+                    <div class="max-w-7xl mx-auto flex items-center justify-between">
+                        <div class="flex items-center gap-6">
+                            <a href="#" onclick="state.currentView='landing'; render()" class="flex items-center gap-2 text-blue-500 font-bold text-xl">
+                                <i data-lucide="graduation-cap" class="w-6 h-6"></i> Echrahli
+                            </a>
+                            <span class="text-white font-bold hidden md:block">Mes Apprentissages</span>
+                        </div>
+                        <div class="relative">
+                            <button onclick="toggleProfileMenu()" class="flex items-center gap-2 border-l border-slate-700 pl-4 focus:outline-none hover:bg-slate-800/50 p-1 rounded transition-colors">
+                                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-sm">Y</div>
+                                <span class="hidden md:block text-sm font-medium text-white">Youcef</span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                            </button>
+                            ${renderProfileDropdown()}
+                        </div>
+                    </div>
+                </nav>
+                <main class="flex-grow max-w-7xl mx-auto w-full p-4 md:p-8 fade-in">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        ${grid}
+                    </div>
+                </main>
+            `;
+        }
+
         function renderSchoolSignup() {
             const step = state.schoolStep;
             let stepContent = '';
-
             if (step === 1) {
                 stepContent = `
                     <h3 class="text-xl font-semibold mb-4 text-indigo-400">Informations de l'Établissement</h3>
@@ -652,7 +1193,7 @@
 
             return `
                 ${modalHtml}
-                <nav class="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 backdrop-blur-md">
+                <nav class="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3">
                     <div class="max-w-7xl mx-auto flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <i data-lucide="building-2" class="w-6 h-6 text-indigo-500"></i>
@@ -664,7 +1205,14 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-4">
-                            <button onclick="state.currentView='landing'; render()" class="text-sm text-slate-400 hover:text-white">Déconnexion</button>
+                             <div class="relative">
+                                <button onclick="toggleProfileMenu()" class="flex items-center gap-2 border-l border-slate-700 pl-4 focus:outline-none hover:bg-slate-800/50 p-1 rounded transition-colors">
+                                    <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-sm">Y</div>
+                                    <span class="hidden md:block text-sm font-medium text-white">Youcef</span>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                                </button>
+                                ${renderProfileDropdown()}
+                            </div>
                         </div>
                     </div>
                 </nav>
@@ -994,7 +1542,14 @@
                             <div class="flex items-center gap-1 text-yellow-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-700 text-xs font-bold shadow-lg">
                                 <i data-lucide="star" class="w-3 h-3 fill-current"></i> ${state.userPoints} Noudjoum
                             </div>
-                            <button onclick="state.currentView='landing'; render()" class="text-sm text-slate-400 hover:text-white">Déconnexion</button>
+                             <div class="relative">
+                                <button onclick="toggleProfileMenu()" class="flex items-center gap-2 border-l border-slate-700 pl-4 focus:outline-none hover:bg-slate-800/50 p-1 rounded transition-colors">
+                                    <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-sm">Y</div>
+                                    <span class="hidden md:block text-sm font-medium text-white">Youcef</span>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                                </button>
+                                ${renderProfileDropdown()}
+                            </div>
                         </div>
                     </div>
                 </nav>
@@ -1077,6 +1632,8 @@
                                         <option value="Business & Marketing">Business & Marketing</option>
                                         <option value="Design & Créativité">Design & Créativité</option>
                                         <option value="Langues & Communication">Langues & Communication</option>
+                                        <option value="Immobilier & Droit">Immobilier & Droit</option>
+                                        <option value="Bureautique & Productivité">Bureautique & Productivité</option>
                                     </select>
                                 </div>
                             </div>
@@ -1145,16 +1702,23 @@
                                 <i data-lucide="shopping-cart" class="w-5 h-5"></i>
                                 <span id="cart-badge" class="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 rounded-full text-[10px] flex items-center justify-center text-white ${state.cartCount > 0 ? '' : 'hidden'}">${state.cartCount}</span>
                             </button>
-                            <div class="flex items-center gap-2 border-l border-slate-700 pl-4">
-                                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-sm">Y</div>
-                                <span class="hidden md:block text-sm font-medium">Youcef</span>
+                            
+                            <!-- Profile Menu (Udemy Style) -->
+                            <div class="relative">
+                                <button onclick="toggleProfileMenu()" class="flex items-center gap-2 border-l border-slate-700 pl-4 focus:outline-none hover:bg-slate-800/50 p-1 rounded transition-colors">
+                                    <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-sm">Y</div>
+                                    <span class="hidden md:block text-sm font-medium text-white">Youcef</span>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                                </button>
+                                ${renderProfileDropdown()}
                             </div>
+
                         </div>
                     </div>
                 </nav>
             `;
 
-            const categories = ["Tout", "Informatique & Logiciels", "Business & Marketing", "Design & Créativité", "Langues & Communication"].map(cat => 
+            const categories = ["Tout", "Informatique & Logiciels", "Business & Marketing", "Bureautique & Productivité", "Immobilier & Droit"].map(cat => 
                 `<button class="px-4 py-2 rounded-full text-sm font-medium ${cat === 'Tout' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors'}">${cat}</button>`
             ).join('');
 
@@ -1175,7 +1739,7 @@
                     <div class="relative h-40 overflow-hidden">
                         <img src="${course.image}" alt="${course.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
                         <div class="absolute top-2 left-2 flex flex-col gap-1">
-                            ${course.hasPhysicalCert ? `<div class="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-sm flex items-center gap-1"><i data-lucide="award" class="w-2.5 h-2.5"></i> Certif. Yalidine</div>` : ''}
+                            <!-- BADGE REMOVED YALIDINE -->
                             ${course.badge === 'new' ? `<div class="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">Nouveau</div>` : ''}
                             ${course.badge === 'bestseller' ? `<div class="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">Bestseller</div>` : ''}
                         </div>
@@ -1423,7 +1987,6 @@
             `;
         }
 
-        // --- AI Assistant Component ---
         function renderAIAssistant() {
             return `
                 <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
@@ -1436,20 +1999,34 @@
                             </div>
                             <button onclick="toggleAIChat()" class="text-white/80 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
                         </div>
-                        <div class="p-4 h-64 overflow-y-auto space-y-4 bg-slate-900/50">
-                            <div class="flex gap-3">
-                                <div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 flex-shrink-0">
-                                    <i data-lucide="bot" class="w-4 h-4"></i>
+                        <div id="chat-history-global" class="p-4 h-64 overflow-y-auto space-y-4 bg-slate-900/50">
+                            ${state.chatMessages.map(msg => `
+                                <div class="flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}">
+                                    <div class="w-8 h-8 rounded-full ${msg.role === 'assistant' ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-white'} flex items-center justify-center flex-shrink-0">
+                                        <i data-lucide="${msg.role === 'assistant' ? 'bot' : 'user'}" class="w-4 h-4"></i>
+                                    </div>
+                                    <div class="${msg.role === 'assistant' ? 'bg-slate-800/80 border-slate-700' : 'bg-blue-600 text-white border-blue-500'} p-3 rounded-lg text-sm border max-w-[80%] ${msg.role === 'assistant' ? 'rounded-tl-none' : 'rounded-tr-none'}">
+                                        ${msg.content}
+                                    </div>
                                 </div>
-                                <div class="bg-slate-800/80 p-3 rounded-lg rounded-tl-none text-sm text-slate-200 border border-slate-700">
-                                    Bonjour ! Je suis votre assistant IA. Besoin d'aide pour créer un cours ?
+                            `).join('')}
+                            ${state.isAiTyping ? `
+                                <div class="flex gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0">
+                                        <i data-lucide="bot" class="w-4 h-4"></i>
+                                    </div>
+                                    <div class="bg-slate-800/80 p-3 rounded-lg rounded-tl-none text-sm text-slate-400 border border-slate-700 flex items-center gap-1">
+                                        <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"></span>
+                                        <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
+                                        <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                                    </div>
                                 </div>
-                            </div>
+                            ` : ''}
                         </div>
                         <div class="p-3 border-t border-slate-700/50 bg-slate-900/80">
                             <div class="relative">
-                                <input type="text" placeholder="Écrivez votre message..." class="w-full bg-slate-800 border border-slate-700 rounded-full pl-4 pr-10 py-2 text-sm text-white focus:border-blue-500 outline-none">
-                                <button class="absolute right-3 top-2 text-blue-500"><i data-lucide="send" class="w-4 h-4"></i></button>
+                                <input id="ai-input" type="text" placeholder="Écrivez votre message..." class="w-full bg-slate-800 border border-slate-700 rounded-full pl-4 pr-10 py-2 text-sm text-white focus:border-blue-500 outline-none">
+                                <button onclick="handleChatSubmit('ai-input', 'chat-history-global', 'global')" class="absolute right-3 top-2 text-blue-500"><i data-lucide="send" class="w-4 h-4"></i></button>
                             </div>
                         </div>
                     </div>
@@ -1463,8 +2040,6 @@
                 </div>
             `;
         }
-
-        // --- Logic & Helpers ---
 
         function initIcons() {
             if (window.lucide) {
@@ -1501,6 +2076,12 @@
         function toggleAIChat() {
             state.isChatOpen = !state.isChatOpen;
             render(); 
+            if(state.isChatOpen) {
+                setTimeout(() => {
+                    const input = document.getElementById('ai-input');
+                    if(input) input.focus();
+                }, 50);
+            }
         }
 
         function generateAIDescription() {
@@ -1529,25 +2110,16 @@
             }, 1500);
         }
 
-        function verifyLandingDiploma() {
-            const input = document.getElementById('landing-diploma-input');
-            const code = input ? input.value.trim() : '';
+        function verifyDiploma(query) {
+            const found = state.shippingRequests.length > 0; 
+            
+            state.verificationResult = found ? {
+                studentName: state.instructorName,
+                courseTitle: "Développement Web Complet",
+                date: new Date().toLocaleDateString('fr-FR')
+            } : null;
 
-            if (!code) {
-                state.landingVerifyMsg = 'Veuillez entrer un numéro.';
-                state.landingVerifyStatus = 'error';
-                render();
-                return;
-            }
-
-            if (code.toUpperCase() === 'ECH-12345') {
-                state.landingVerifyMsg = 'Diplôme Authentique - Délivré à Youcef';
-                state.landingVerifyStatus = 'success';
-            } else {
-                state.landingVerifyMsg = 'Code Invalide';
-                state.landingVerifyStatus = 'error';
-            }
-            render();
+            document.getElementById('verify-modal').classList.remove('hidden');
         }
 
         function nextSchoolStep() {
@@ -1610,16 +2182,23 @@
             }
         }
 
+        // --- NEW: Notification Logic ---
         function goToSignup(role) {
             state.userRole = role;
-            if (role === 'student') {
-                state.currentView = 'signup-student';
-            } else if (role === 'instructor') {
-                state.currentView = 'signup-instructor';
-            } else {
-                state.currentView = 'signup-school';
-            }
-            render();
+            // Show the simulation notification first
+            showToast("⚠️ La plateforme accepte n'importe quelle information car c'est juste une simulation.", "info");
+            
+            // Slight delay to read the toast, then navigate
+            setTimeout(() => {
+                if (role === 'student') {
+                    state.currentView = 'signup-student';
+                } else if (role === 'instructor') {
+                    state.currentView = 'signup-instructor';
+                } else {
+                    state.currentView = 'signup-school';
+                }
+                render();
+            }, 1000);
         }
 
         function handleSignup(e, type) {
@@ -1716,19 +2295,12 @@
             const desc = document.getElementById('new-desc').value;
 
             let imageUrl = '';
-            switch(category) {
-                case 'Informatique & Logiciels':
-                    imageUrl = 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400';
-                    break;
-                case 'Business & Marketing':
-                    imageUrl = 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400';
-                    break;
-                case 'Design & Créativité':
-                    imageUrl = 'https://images.unsplash.com/photo-1558655146-d09347e92766?w=400';
-                    break;
-                default:
-                    imageUrl = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400';
-            }
+            if(category.includes('Informatique')) imageUrl = 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400';
+            else if(category.includes('Business') || category.includes('Marketing')) imageUrl = 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400';
+            else if(category.includes('Design')) imageUrl = 'https://images.unsplash.com/photo-1558655146-d09347e92766?w=400';
+            else if(category.includes('Immobilier')) imageUrl = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400';
+            else if(category.includes('Bureautique') || category.includes('Excel')) imageUrl = 'https://images.unsplash.com/photo-1543286386-713d57659598?w=400';
+            else imageUrl = 'https://images.unsplash.com/photo-1516321318423-c06f85e504b3?w=400';
 
             const newCourse = {
                 id: Date.now(),
@@ -1741,7 +2313,8 @@
                 category: category,
                 badge: "new", 
                 hasPhysicalCert: false,
-                syllabus: [{title: "Introduction", desc: desc}]
+                syllabus: [{title: "Introduction", desc: desc}],
+                lessons: [{id: 999, title: "Leçon de démo", duration: "5:00"}] // Prevent crash
             };
 
             state.createdCourses.unshift(newCourse);
@@ -1781,11 +2354,9 @@
             }
         }
 
-        // --- Watch View Logic ---
-
         function toggleDeepWorkMode() {
             state.isDeepWorkMode = !state.isDeepWorkMode;
-            render(); // Re-rendering handles CSS class injection via renderWatchView
+            render(); 
         }
 
         function changeLesson(index) {
@@ -1802,7 +2373,6 @@
             const course = courses.find(c => c.id === state.selectedCourse);
             if (!course) return `<div class="text-white p-8">Course not found</div>`;
 
-            // --- Focus Mode Logic ---
             if (state.isDeepWorkMode) {
                 document.body.classList.add('focus-mode-active');
             } else {
@@ -1813,16 +2383,12 @@
             const currentLessonIndex = state.currentLessonIndex || 0;
             const currentLesson = courseLessons[currentLessonIndex] || courseLessons[0];
 
-            // Helper to determine tab active state
             const isActive = (tab) => state.watchActiveTab === tab ? 'watch-tab-active' : 'watch-tab-inactive';
 
             return `
                 <div class="main-watch-container flex flex-col md:flex-row h-screen bg-[#0f172a] text-white overflow-hidden">
-                    
-                    <!-- LEFT SIDE: Video Player Area -->
                     <div class="flex-1 flex flex-col h-full relative z-10 video-player-container">
                         
-                        <!-- Header -->
                         <nav class="h-16 border-b border-slate-800 bg-slate-900 flex items-center px-6 justify-between shrink-0">
                             <div class="flex items-center gap-4">
                                 <button onclick="state.currentView='marketplace'; render()" class="text-slate-400 hover:text-white transition-colors">
@@ -1834,14 +2400,12 @@
                                 </div>
                             </div>
 
-                            <!-- 4. Focus Mode Toggle -->
                             <button onclick="toggleDeepWorkMode()" class="flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-700 hover:bg-slate-800 hover:border-blue-500 text-xs font-medium transition-all ${state.isDeepWorkMode ? 'bg-blue-600 text-white border-blue-500' : 'text-slate-300'}">
                                 <i data-lucide="${state.isDeepWorkMode ? 'minimize-2' : 'maximize-2'}" class="w-4 h-4"></i>
                                 ${state.isDeepWorkMode ? 'Quitter Focus' : 'Mode Focus'}
                             </button>
                         </nav>
 
-                        <!-- 3. Black Screen Placeholder -->
                         <div class="flex-1 bg-[#000000] flex items-center justify-center relative group video-player-container">
                             <div class="text-center">
                                 <div class="w-20 h-20 rounded-full bg-[#1e293b] flex items-center justify-center mx-auto mb-4 border border-slate-700 group-hover:border-blue-500 transition-all">
@@ -1851,7 +2415,6 @@
                             </div>
                         </div>
 
-                        <!-- 1. Tab System Update -->
                         <div class="h-56 border-t border-slate-800 bg-slate-900 shrink-0 overflow-y-auto custom-scrollbar">
                             <div class="flex overflow-x-auto border-b border-slate-800 px-2 no-scrollbar">
                                 <button onclick="setWatchTab('notes')" class="${isActive('notes')} px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors">Notes</button>
@@ -1861,7 +2424,6 @@
                                 <button onclick="setWatchTab('group')" class="${isActive('group')} px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors">Rejoindre Groupe</button>
                             </div>
 
-                            <!-- Tab Content Area -->
                             <div class="p-4 h-full">
                                 ${state.watchActiveTab === 'notes' ? `
                                     <textarea class="w-full h-full bg-transparent text-slate-300 text-sm resize-none focus:outline-none placeholder-slate-600" placeholder="Prenez vos notes ici..."></textarea>
@@ -1869,19 +2431,33 @@
                                 
                                 ${state.watchActiveTab === 'ai' ? `
                                     <div class="h-full flex flex-col">
-                                        <div class="flex-1 overflow-y-auto mb-4 space-y-3 pr-2">
-                                            <div class="flex gap-3">
-                                                <div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 flex-shrink-0">
-                                                    <i data-lucide="bot" class="w-4 h-4"></i>
+                                        <div id="chat-history-watch" class="flex-1 overflow-y-auto mb-4 space-y-3 pr-2">
+                                            ${state.chatMessages.map(msg => `
+                                                <div class="flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}">
+                                                    <div class="w-6 h-6 rounded-full ${msg.role === 'assistant' ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-white'} flex items-center justify-center flex-shrink-0 text-xs">
+                                                        <i data-lucide="${msg.role === 'assistant' ? 'bot' : 'user'}" class="w-3 h-3"></i>
+                                                    </div>
+                                                    <div class="${msg.role === 'assistant' ? 'bg-slate-800/80 border-slate-700' : 'bg-blue-600 text-white border-blue-500'} p-2 rounded-lg text-xs border max-w-[90%] ${msg.role === 'assistant' ? 'rounded-tl-none' : 'rounded-tr-none'}">
+                                                        ${msg.content}
+                                                    </div>
                                                 </div>
-                                                <div class="bg-slate-800/80 p-3 rounded-lg rounded-tl-none text-sm text-slate-200 border border-slate-700">
-                                                    Bonjour ! Je suis votre assistant IA pour ce cours. Avez-vous une question sur le chapitre actuel ?
+                                            `).join('')}
+                                            ${state.isAiTyping ? `
+                                                <div class="flex gap-3">
+                                                    <div class="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0 text-xs">
+                                                        <i data-lucide="bot" class="w-3 h-3"></i>
+                                                    </div>
+                                                    <div class="bg-slate-800/80 p-2 rounded-lg rounded-tl-none text-xs text-slate-400 border border-slate-700 flex items-center gap-1">
+                                                        <span class="w-1 h-1 bg-slate-500 rounded-full animate-bounce"></span>
+                                                        <span class="w-1 h-1 bg-slate-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
+                                                        <span class="w-1 h-1 bg-slate-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            ` : ''}
                                         </div>
                                         <div class="relative mt-auto">
-                                            <input type="text" placeholder="Parlez à l'IA..." class="w-full bg-slate-800 border border-slate-700 rounded-lg pl-4 pr-10 py-2 text-sm text-white focus:border-blue-500 outline-none">
-                                            <button class="absolute right-2 top-2 text-blue-500"><i data-lucide="send" class="w-4 h-4"></i></button>
+                                            <input id="ai-input-watch" type="text" placeholder="Parlez à l'IA..." class="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-8 py-1.5 text-xs text-white focus:border-blue-500 outline-none">
+                                            <button onclick="handleChatSubmit('ai-input-watch', 'chat-history-watch', 'watch')" class="absolute right-2 top-1.5 text-blue-500"><i data-lucide="send" class="w-3 h-3"></i></button>
                                         </div>
                                     </div>
                                 ` : ''}
@@ -1940,14 +2516,12 @@
                         </div>
                     </div>
 
-                    <!-- RIGHT SIDE: Playlist Sidebar -->
                     <div class="sidebar w-full md:w-80 bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 h-1/3 md:h-full z-20">
                         <div class="p-4 border-b border-slate-800 bg-slate-900">
                             <h3 class="font-bold text-sm text-slate-300 uppercase tracking-wider">Contenu du cours</h3>
                             <p class="text-xs text-slate-500 mt-1">${courseLessons.length} Leçons</p>
                         </div>
                         
-                        <!-- 5. Playlist Integration -->
                         <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
                             ${courseLessons.map((lesson, index) => {
                                 const isActive = index === currentLessonIndex;
@@ -1957,7 +2531,6 @@
                                         class="cursor-pointer rounded transition-all duration-200 p-3 flex items-center gap-3 hover:bg-slate-800 group border-l-4 border-transparent
                                         ${isActive ? 'active-lesson' : 'text-slate-400'}"
                                     >
-                                        <!-- Icon / Number -->
                                         <div class="w-6 h-6 rounded-full border flex items-center justify-center text-xs shrink-0
                                             ${isActive ? 'border-blue-500 text-blue-500' : 'border-slate-600 group-hover:border-slate-400'}">
                                             ${isActive 
@@ -1966,7 +2539,6 @@
                                             }
                                         </div>
                                         
-                                        <!-- Lesson Title -->
                                         <div class="text-sm font-medium truncate ${isActive ? 'text-white' : 'group-hover:text-slate-200'}">
                                             ${lesson.title}
                                         </div>
@@ -1983,22 +2555,10 @@
             const questionInput = document.getElementById('prof-question');
             if (questionInput && questionInput.value.trim() !== "") {
                 showToast("Votre message a été envoyé avec succès ! Le professeur vous répondra bientôt.", "success");
-                questionInput.value = ""; // Clear input
+                questionInput.value = ""; 
             } else {
                 showToast("Veuillez écrire une question.", "info");
             }
-        }
-
-        function verifyDiploma(query) {
-            const found = state.shippingRequests.length > 0; 
-            
-            state.verificationResult = found ? {
-                studentName: state.instructorName,
-                courseTitle: "Développement Web Complet",
-                date: new Date().toLocaleDateString('fr-FR')
-            } : null;
-
-            document.getElementById('verify-modal').classList.remove('hidden');
         }
 
         document.addEventListener('DOMContentLoaded', () => {
